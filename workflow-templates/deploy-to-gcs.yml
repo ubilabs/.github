@@ -2,14 +2,47 @@ name: Deploy to GCS
 
 on:
   pull_request:
-    branches: [ $default-branch ]
+    branches: [$default-branch]
+
+env:
+  PROJECT_NAME: my-project-1
 
 jobs:
-  build:
+  build_deploy:
+    name: Build and deploy production bundle
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v2
-    
-    - name: Run a one-line script
-      run: echo Hello from Octo Organization
+      - name: Set correct timezone
+        run: sudo timedatectl set-timezone Europe/Berlin
+      - name: Checkout repository from GitHub
+        uses: actions/checkout@v2
+      - name: Setup npm
+        uses: actions/setup-node@v1
+        with:
+          registry-url: https://npm.pkg.github.com/
+      - name: Install project dependencies
+        run: npm install
+      - name: Build project
+        run: npm run build
+      - name: Setup Google Cloud SDK
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: "290.0.1"
+          service_account_email: ${{ secrets.GCP_SA_EMAIL }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+      # Generally "gsutil rsync" would be preferable, but we cannot set the "-z"
+      # flag for using compression on certain file types via rsync. So we need
+      # to manually delete old content and then copy the new content
+      - name: Delete old folder content
+        run: gsutil -m rm -r gs://${{ env.PROJECT_NAME }}/live/**
+      - name: Upload bundle to Google Storage
+        run: gsutil -m cp -r -z html,js,svg,png,jpg,css,woff,woff2 -a public-read dist/** gs://${{ env.PROJECT_NAME }}/live/
+      - name: Disable cache for HTML
+        run: gsutil setmeta -h "Cache-Control:no-cache" gs://${{ env.PROJECT_NAME }}/live/*.html
+      - name: Immutable cache for JS
+        run: gsutil setmeta -h "Cache-Control:max-age=31536000,immutable" gs://${{ env.PROJECT_NAME }}/live/*.js
+      - name: Immutable cache for WOFF
+        run: gsutil setmeta -h "Cache-Control:max-age=31536000,immutable" gs://${{ env.PROJECT_NAME }}/live/*.woff
+      - name: Immutable cache for WOFF2
+        run: gsutil setmeta -h "Cache-Control:max-age=31536000,immutable" gs://${{ env.PROJECT_NAME }}/live/*.woff2
