@@ -1,0 +1,13 @@
+{
+  "name": "Ubilabs Deploy to GCS",
+  "description": "The default way we deploy frontend projects at Ubilabs.",
+  "iconName": "ubilabs-logo",
+  "categories": [
+      "Deployment",
+      "Google Cloud",
+      "Frontend"
+  ],
+  "filePatterns": [
+      "package.json$"
+  ]
+}
